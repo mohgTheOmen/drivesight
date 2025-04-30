@@ -1,0 +1,11 @@
+/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/deps/libembassy_futures-79dc6da64bee7b5e.rmeta: /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/lib.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/fmt.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/block_on.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/yield_now.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/join.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/select.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/../README.md
+
+/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/deps/embassy_futures-79dc6da64bee7b5e.d: /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/lib.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/fmt.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/block_on.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/yield_now.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/join.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/select.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/../README.md
+
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/lib.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/fmt.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/block_on.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/yield_now.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/join.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/select.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-futures/src/../README.md:

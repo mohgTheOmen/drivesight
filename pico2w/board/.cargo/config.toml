@@ -1,0 +1,14 @@
+[build]
+target = "thumbv8m.main-none-eabihf"
+
+[target.thumbv8m.main-none-eabihf]
+#runner = "picotool load -u -v -x -t elf"
+runner = "probe-rs run --chip RP235x"
+
+[env]
+DEFMT_LOG = "debug"
+#WIFI_SSID = "Lyacoon's S22"
+#WIFI_PASSWORD = "Andrei2004" 
+WIFI_SSID = "jones"
+WIFI_PASSWORD = "jack1234"
+

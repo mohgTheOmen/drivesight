@@ -1,0 +1,9 @@
+/home/andrei/Documents/School/Microprocessors/Project/master/target/thumbv8m.main-none-eabihf/debug/deps/libembedded_io_async-bfc57e42f8149145.rmeta: /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/lib.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/impls/mod.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/impls/slice_mut.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/impls/slice_ref.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/../README.md
+
+/home/andrei/Documents/School/Microprocessors/Project/master/target/thumbv8m.main-none-eabihf/debug/deps/embedded_io_async-bfc57e42f8149145.d: /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/lib.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/impls/mod.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/impls/slice_mut.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/impls/slice_ref.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/../README.md
+
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/lib.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/impls/mod.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/impls/slice_mut.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/impls/slice_ref.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-io-async-0.6.1/src/../README.md:

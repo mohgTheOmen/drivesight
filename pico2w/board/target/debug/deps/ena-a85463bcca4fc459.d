@@ -1,0 +1,11 @@
+/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/deps/libena-a85463bcca4fc459.rmeta: /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/lib.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/snapshot_vec.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/undo_log.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/unify/mod.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/unify/backing_vec.rs
+
+/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/deps/libena-a85463bcca4fc459.rlib: /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/lib.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/snapshot_vec.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/undo_log.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/unify/mod.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/unify/backing_vec.rs
+
+/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/deps/ena-a85463bcca4fc459.d: /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/lib.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/snapshot_vec.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/undo_log.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/unify/mod.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/unify/backing_vec.rs
+
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/lib.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/snapshot_vec.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/undo_log.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/unify/mod.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ena-0.14.3/src/unify/backing_vec.rs:

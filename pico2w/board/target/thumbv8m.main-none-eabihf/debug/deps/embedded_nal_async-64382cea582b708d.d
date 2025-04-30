@@ -1,0 +1,9 @@
+/home/andrei/Documents/School/Microprocessors/Project/master/target/thumbv8m.main-none-eabihf/debug/deps/libembedded_nal_async-64382cea582b708d.rmeta: /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/lib.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/dns.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/stack/mod.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/stack/tcp.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/stack/udp.rs
+
+/home/andrei/Documents/School/Microprocessors/Project/master/target/thumbv8m.main-none-eabihf/debug/deps/embedded_nal_async-64382cea582b708d.d: /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/lib.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/dns.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/stack/mod.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/stack/tcp.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/stack/udp.rs
+
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/lib.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/dns.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/stack/mod.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/stack/tcp.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/embedded-nal-async-0.8.0/src/stack/udp.rs:

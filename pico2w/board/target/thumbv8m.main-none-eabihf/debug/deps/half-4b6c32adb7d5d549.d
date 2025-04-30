@@ -1,0 +1,11 @@
+/home/andrei/Documents/School/Microprocessors/Project/master/target/thumbv8m.main-none-eabihf/debug/deps/libhalf-4b6c32adb7d5d549.rmeta: /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/lib.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/bfloat.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/bfloat/convert.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/binary16.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/binary16/arch.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/leading_zeros.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/slice.rs
+
+/home/andrei/Documents/School/Microprocessors/Project/master/target/thumbv8m.main-none-eabihf/debug/deps/half-4b6c32adb7d5d549.d: /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/lib.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/bfloat.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/bfloat/convert.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/binary16.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/binary16/arch.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/leading_zeros.rs /home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/slice.rs
+
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/lib.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/bfloat.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/bfloat/convert.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/binary16.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/binary16/arch.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/leading_zeros.rs:
+/home/andrei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/half-2.5.0/src/slice.rs:

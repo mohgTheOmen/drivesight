@@ -1,0 +1,15 @@
+/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/deps/libembassy_hal_internal-8fc69a3f40935bba.rmeta: /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/lib.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/fmt.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/atomic_ring_buffer.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/drop.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/macros.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/peripheral.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/ratio.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/interrupt.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/../README.md
+
+/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/deps/embassy_hal_internal-8fc69a3f40935bba.d: /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/lib.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/fmt.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/atomic_ring_buffer.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/drop.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/macros.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/peripheral.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/ratio.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/interrupt.rs /home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/../README.md
+
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/lib.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/fmt.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/atomic_ring_buffer.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/drop.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/macros.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/peripheral.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/ratio.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/interrupt.rs:
+/home/andrei/.cargo/git/checkouts/embassy-c08a80187403f815/5158482/embassy-hal-internal/src/../README.md:
+
+# env-dep:DEFMT_LOG
