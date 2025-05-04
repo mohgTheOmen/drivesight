@@ -35,6 +35,7 @@ const char* password = "ronjames";
 #define PCLK_GPIO_NUM  13
 
 //void readUARTTask(void *pvParameters);
+void wifiTask(void *pvParameters);
 void controllerTask(void *pvParameters);
 void cameraServerTask(void *pvParameters);
 
@@ -160,31 +161,12 @@ void setup() {
 
   setupCamera();
 
-  // Connect to AP
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi..");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println();
-  Serial.println("WiFi connected");
-  Serial.print("Camera Stream Ready! Open http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("/");
-
-//  // Set up the ESP32 as an Access Point
-//  if (!WiFi.softAP(ssid, password)) {
-//    log_e("Soft AP creation failed.");
-//    while(1);
-//  }
-//  Serial.print("Setting AP... ");
-//  Serial.print(ssid);
-//  Serial.print(" IP address: ");
-//  Serial.println(WiFi.softAPIP());
+  WiFi.mode(WIFI_STA);
+  delay(100);
 
   server.begin();
 
+  xTaskCreatePinnedToCore(wifiTask, "WiFiTask", 4096, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(controllerTask, "ControllerTask", 4096, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(cameraServerTask, "CameraTask", 8192, NULL, 1, NULL, 1);
 //  xTaskCreatePinnedToCore(readUARTTask, "ReadUARTTask", 2048, NULL, 1, NULL, 0);
@@ -193,13 +175,54 @@ void setup() {
 void loop() {
     delay(100); // loop does nothing now
 }
-//
+
 //void readUARTTask(void *pvParameters) {
 //  while (true) {
 //    readUARTData();  // Read and process data from UART
 //    vTaskDelay(pdMS_TO_TICKS(10));  // Yield to other tasks
 //  }
 //}
+
+// Wi-Fi Connection Task
+void wifiTask(void *pvParameters) {
+  //  // Set up the ESP32 as an Access Point
+  //  if (!WiFi.softAP(ssid, password)) {
+  //    log_e("Soft AP creation failed.");
+  //    while(1);
+  //  }
+  //  Serial.print("Setting AP... ");
+  //  Serial.print(ssid);
+  //  Serial.print(" IP address: ");
+  //  Serial.println(WiFi.softAPIP());
+  
+    while (true) {
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("WiFi not connected. Attempting to connect...");
+            WiFi.disconnect();
+            WiFi.begin(ssid, password);
+
+            unsigned long startAttemptTime = millis();
+            const unsigned long timeout = 10000; // 10 seconds max wait
+
+            while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < timeout) {
+                Serial.print(".");
+                vTaskDelay(pdMS_TO_TICKS(500));
+            }
+
+            if (WiFi.status() == WL_CONNECTED) {
+                Serial.println("\nWiFi connected!");
+                Serial.print("IP address: ");
+                Serial.println(WiFi.localIP());
+            } else {
+                Serial.println("\nWiFi connection failed. Retrying in 5s...");
+            }
+        }
+
+        // Check every 5 seconds for disconnect
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
+
 
 // Controller Task
 void controllerTask(void *pvParameters) {
