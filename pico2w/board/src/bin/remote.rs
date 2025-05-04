@@ -1,29 +1,24 @@
 #![no_std]
 #![no_main]
-#![allow(unused_imports)]
+// #![allow(unused_imports)]
 
 extern crate alloc;
 
-use core::{net::Ipv4Addr, str::{self, from_utf8}, cell::RefCell};
+use core::{net::Ipv4Addr, str::from_utf8, cell::RefCell};
 use alloc::string::{String, ToString};
 use alloc_cortex_m::CortexMHeap;
 
-use cyw43::JoinOptions;
 use embassy_executor::Spawner;
 use embassy_rp::{
-    adc::{Adc, Channel as ChannelAdc, Config as ConfigAdc, InterruptHandler as AdcInterruptHandler},
     bind_interrupts,
-    clocks::{RoscRng, AdcClkSrc},
-    config,
+    clocks::{RoscRng},
     gpio::{Input, Level, Output, Pull},
     peripherals::{DMA_CH0, PIO0, SPI0, SPI1},
     pio::{InterruptHandler as PioInterruptHandler, Pio},
     pwm::{Config as ConfigPwm, Pwm, SetDutyCycle},
     spi::{Async, Blocking, Config as ConfigSpi, Spi},
-    time_driver::init,
 };
 use embassy_time::{Duration, Timer, Delay};
-use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::{
     raw::{NoopRawMutex, ThreadModeRawMutex},
     NoopMutex,
@@ -47,11 +42,9 @@ use rand::RngCore as _;
 
 use display_interface_spi::SPIInterface;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDevice;
-use micromath::F32Ext;
 
 use {defmt_rtt as _};
 
-use itoa::{Buffer};
 use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
 use embassy_net::{tcp::TcpSocket, Config as NetConfig, Ipv4Cidr, StackResources, StaticConfigV4};
 
@@ -85,8 +78,8 @@ async fn main(spawner: Spawner) {
 
     let p = embassy_rp::init(Default::default());
 
-    let firmware = include_bytes!("../../extras/cyw43-firmware/43439A0.bin");
-    let clm = include_bytes!("../../extras/cyw43-firmware/43439A0_clm.bin");
+    let firmware = include_bytes!("/home/andrei/Documents/School/Microprocessors/embassy/cyw43-firmware/43439A0.bin");
+    let clm = include_bytes!("/home/andrei/Documents/School/Microprocessors/embassy/cyw43-firmware/43439A0_clm.bin");
 
     // Initialize the WiFi module
     let power = Output::new(p.PIN_23, Level::Low);
@@ -188,11 +181,11 @@ async fn main(spawner: Spawner) {
     unwrap!(spawner.spawn(net_task(runner)));
     info!("Network task spawned.");
 
-    let pico_ssid = "mark";
-    let pico_password = "erpliers";
+    let pico_ssid = "jones";
+    let pico_password = "jack1234";
 
     info!("Starting WiFi access point...");
-    control.start_ap_wpa2(pico_ssid, pico_password, 1).await;
+    control.start_ap_wpa2(pico_ssid, pico_password, 6).await;
     info!("WiFi access point started.");
 
     let mut rx_buf = [0; 4096];
@@ -208,7 +201,7 @@ async fn main(spawner: Spawner) {
         let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
         info!("TCP socket initialized.");
 
-        socket.set_timeout(Some(Duration::from_secs(10000)));
+        socket.set_timeout(Some(Duration::from_secs(10)));
         info!("Socket timeout set.");
 
         control.gpio_set(0, false).await;

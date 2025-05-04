@@ -21,7 +21,7 @@ use embassy_rp::{
     time_driver::init,
     uart::{Async as UartAsync, Config as UartConfig, DataBits, Parity, StopBits, Uart}
 };
-use embassy_time::{Delay, Duration, Instant, Timer};
+use embassy_time::{with_timeout, Delay, Duration, Instant, Timer};
 use embassy_sync::{channel::Channel, pubsub::{PubSubChannel, WaitResult::{Lagged, Message}}};
 use embassy_sync::blocking_mutex::{raw::{NoopRawMutex, ThreadModeRawMutex}, NoopMutex};
 use embassy_futures::select::{select, Either};
@@ -403,68 +403,83 @@ async fn wifi_task(
     let mut subscriber_r = CHANNEL_CURRENT_R.subscriber().unwrap();
 
     loop {
-        match control
-            .join(wifi_ssid, JoinOptions::new(wifi_password.as_bytes()))
-            .await
-        {
-            Ok(_) => break,
-            Err(err) => {
-                info!("join failed with status={}", err.status);
-            }
-        }
-    }
+        loop {
+            match control
+                .join(wifi_ssid, JoinOptions::new(wifi_password.as_bytes()))
+                .await
+            {
+                Ok(_) => {
+                    info!("Wi-Fi connected.");
+                    if let Some(config) = stack.config_v4() {
+                        info!("IP Address: {}", config.address.address());
+                    } 
 
-    if let Some(config) = stack.config_v4() {
-        info!("IP Address: {}", config.address.address());
-    } else {
-        info!("Failed to retrieve IP address");
-    }
-
-    let mut rx_buf = [0; 4096];
-    let mut tx_buf = [0; 4096];
-    let mut buf = [0; 4096];
-
-    loop {
-        let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
-        socket.set_timeout(Some(Duration::from_secs(10000)));
-
-        let c_address = Ipv4Addr::new(169, 42, 1, 1);
-        let c_port = 6000;
-
-        control.gpio_set(0, false).await;
-        info!("Connecting to {} via port {}", c_address, c_port);
-
-        match socket.connect((c_address, c_port)).await {
-            Ok(_) => {
-                info!("Connected to {} via port {}", c_address, c_port);
-                control.gpio_set(0, true).await;
-
-                let mut auto: bool = false;
-
-                loop {
-                    let current_left = match subscriber_l.next_message().await {
-                        Message(msg) => msg,
-                        Lagged(_) => 0.0
-                    };
-                    let current_right = match subscriber_r.next_message().await {
-                        Message(msg) => msg,
-                        Lagged(_) => 0.0
-                    };
-                    
-                    let msg = format!(
-                        "LEFT:{:?} RIGHT:{:?} MODE:{}\n",
-                        current_left, current_right, !auto
-                    );
-                    let _ = socket.write(msg.as_bytes()).await;
-            
-                    auto = !auto;
-                    Timer::after_millis(100).await;
+                    break;
+                }
+                Err(err) => {
+                    warn!("Wi-Fi join failed: status={}", err.status);
+                    Timer::after_secs(5).await;
+                    continue;
                 }
             }
-            Err(e) => {
-                warn!("Connect error: {:?}", e);
-                continue;
+        }
+
+        let mut rx_buf = [0; 4096];
+        let mut tx_buf = [0; 4096];
+
+        loop {
+            let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
+            socket.set_timeout(Some(Duration::from_secs(10)));
+    
+            let c_address = Ipv4Addr::new(169, 42, 1, 1);
+            let c_port = 6000;
+    
+            control.gpio_set(0, false).await;
+            info!("Connecting to {} via port {}", c_address, c_port);
+    
+            match with_timeout(Duration::from_secs(10), socket.connect((c_address, c_port))).await {
+                Ok(Ok(_)) => {
+                    info!("Connected to {} via port {}", c_address, c_port);
+                    control.gpio_set(0, true).await;
+    
+                    let mut auto: bool = false;
+    
+                    loop {
+                        let current_left = match subscriber_l.next_message().await {
+                            Message(msg) => msg,
+                            Lagged(_) => 0.0
+                        };
+                        let current_right = match subscriber_r.next_message().await {
+                            Message(msg) => msg,
+                            Lagged(_) => 0.0
+                        };
+                        
+                        let msg = format!(
+                            "LEFT:{:.3} RIGHT:{:.3} MODE:{}\n",
+                            current_left, current_right, !auto
+                        );
+                        if let Err(e) = socket.write(msg.as_bytes()).await {
+                            warn!("Socket write failed: {:?}", e);
+                            break; 
+                        }
+                
+                        auto = !auto;
+                        Timer::after_millis(100).await;
+                    }
+                }
+                Ok(Err(e)) => {
+                    warn!("Connect error: {:?}", e);
+                }
+                Err(_) => {
+                    warn!("TCP connect timeout after 10s");
+                }
             }
+
+            control.gpio_set(0, false).await;
+            warn!("Connection lost or failed. Restarting...");
+            let _ = control.leave().await;
+            Timer::after_secs(3).await;
+            break;
         }
     }
 }
