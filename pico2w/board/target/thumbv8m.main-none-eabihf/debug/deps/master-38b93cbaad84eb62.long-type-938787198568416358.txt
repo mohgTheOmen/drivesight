@@ -1,1 +1,0 @@
-embassy_rp::adc::Config: Binding<embassy_rp::interrupt::typelevel::ADC_IRQ_FIFO, embassy_rp::adc::InterruptHandler>

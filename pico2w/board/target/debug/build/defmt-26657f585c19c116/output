@@ -1,3 +1,0 @@
-cargo:rustc-link-search=/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/build/defmt-26657f585c19c116/out
-cargo:rustc-check-cfg=cfg(c_variadic)
-cargo:rustc-check-cfg=cfg(no_cas)

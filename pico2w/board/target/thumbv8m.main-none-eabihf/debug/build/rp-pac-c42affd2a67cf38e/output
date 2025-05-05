@@ -1,3 +1,0 @@
-cargo:rustc-link-search=/home/andrei/Documents/School/Microprocessors/Project/master/target/thumbv8m.main-none-eabihf/debug/build/rp-pac-c42affd2a67cf38e/out
-cargo:rerun-if-changed=device.x
-cargo:rerun-if-changed=build.rs

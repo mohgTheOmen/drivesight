@@ -1,1 +1,0 @@
-fn(Output<'static>, Input<'static>, Output<'static>, Input<'static>, Output<'static>, Input<'static>) -> SpawnToken<impl Sized> {__distance_task}: TaskFn<_>

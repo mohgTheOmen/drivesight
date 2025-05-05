@@ -1,6 +1,0 @@
-$ mkdir -p "/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/build/az-a77b3c62ea18f854/out/try_track_caller"
-$ cd "/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/build/az-a77b3c62ea18f854/out/try_track_caller"
-$ printf '%s' "// try_tra"... > "/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/build/az-a77b3c62ea18f854/out/try_track_caller/try_track_caller.rs"
-$ cd "/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/build/az-a77b3c62ea18f854/out/try_track_caller" && "rustc" "try_track_caller.rs" "--emit=dep-info,metadata" >& /dev/null
-cargo:rustc-cfg=track_caller
-$ rm -r "/home/andrei/Documents/School/Microprocessors/Project/github/project-mohgTheOmen/pico2w/board/target/debug/build/az-a77b3c62ea18f854/out/try_track_caller"

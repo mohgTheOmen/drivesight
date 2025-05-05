@@ -1,3 +1,0 @@
-cargo:rustc-link-search=/home/andrei/Documents/School/Microprocessors/Project/master/target/thumbv8m.main-none-eabihf/debug/build/defmt-c9964479fa1b56bf/out
-cargo:rustc-check-cfg=cfg(c_variadic)
-cargo:rustc-check-cfg=cfg(no_cas)
