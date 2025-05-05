@@ -1,0 +1,7 @@
+# Ignore Pico 2W target
+
+/pico2w/board/target/
+
+# Ignore build artifacts
+
+/pico2w/board/Cargo.lock
