@@ -1,0 +1,5 @@
+/pico2w/board/target/
+
+/pico2w/board/Cargo.lock
+
+/esp32s3/board/secret.h

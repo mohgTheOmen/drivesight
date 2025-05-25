@@ -1,0 +1,56 @@
+[package]
+name = "board"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+embassy-sync = { version = "0.6.2", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb", features = ["defmt"] }
+embassy-executor = { version = "0.7.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb", features = ["arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
+embassy-time = { version = "0.4.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-rp = { version = "0.4.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp235xa", "binary-info"] }
+#embassy-usb = { version = "0.4.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb", features = ["defmt"] }
+embassy-net = { version = "0.7.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb", features = ["defmt", "tcp", "udp", "raw", "dhcpv4", "medium-ethernet", "dns"] }
+embassy-net-wiznet = { version = "0.2.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb", features = ["defmt"] }
+embassy-futures = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb" }
+#embassy-usb-logger = { version = "0.4.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb" }
+embassy-embedded-hal = { version = "0.3.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb"}
+cyw43 = { version = "0.3.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb", features = ["defmt", "firmware-logs"] }
+cyw43-pio = { version = "0.4.0", git = "https://github.com/embassy-rs/embassy", rev = "5158482eb", features = ["defmt"] }
+smoltcp = { version = "0.12.0" , default-features = false }
+
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+cortex-m-semihosting = "0.5"
+embedded-hal = "1.0.0"
+panic-halt = "1.0.0"
+panic-probe = "1.0.0"
+defmt = "1.0.1"
+defmt-rtt = "1.0.0"
+critical-section = "1.2.0"
+static_cell = "2.1"
+itoa = "1.0"
+micromath = "2.1.0"
+
+hcsr04_async = { version= "0.4.0", path = "../../extras/hcsr04_async" }
+
+mipidsi = "0.8.0"
+display-interface-spi = "0.5.0"
+
+heapless = "0.8.0"
+rand = { version = "0.8.5", default-features = false } 
+alloc-cortex-m = "0.4.4"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+debug = true
+
+[dependencies.embedded-graphics]
+version = "0.8.1"
+optional = true
+
+[features]
+default = ["graphics"]
+graphics = ["embedded-graphics"]
