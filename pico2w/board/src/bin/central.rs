@@ -46,7 +46,7 @@ use hcsr04_async::{Hcsr04, Config as HcsrConfig, DistanceUnit, TemperatureUnit, 
 //     configuration::*,
 // };
 
-static UART_CHANNEL: Channel<ThreadModeRawMutex, (u8, String, String, i16, i16, i16, i16, u16, u16, String), 1> = Channel::new();
+static UART_CHANNEL: PubSubChannel<ThreadModeRawMutex, (u8, String, String, i16, i16, i16, i16, u16, u16, String), 1, 5, 1> = PubSubChannel::new();
 static CHANNEL_FRONT: PubSubChannel<ThreadModeRawMutex, f64, 1, 5, 1> = PubSubChannel::new();
 static CHANNEL_LEFT: PubSubChannel<ThreadModeRawMutex, f64, 1, 5, 1> = PubSubChannel::new();
 static CHANNEL_RIGHT: PubSubChannel<ThreadModeRawMutex, f64, 1, 5, 1> = PubSubChannel::new();
@@ -243,55 +243,104 @@ async fn motors(
     mut r_in1: Output<'static>,
     mut r_in2: Output<'static>,
 ) {
-    l_pwm.set_duty_cycle(0);
-    r_pwm.set_duty_cycle(0);
-    l_in1.set_high();
+    // Initialize motors to stopped state
+    // set_duty_cycle_percent expects 0-100
+    l_pwm.set_duty_cycle_percent(0);
+    r_pwm.set_duty_cycle_percent(0);
+    l_in1.set_low();
     l_in2.set_low();
-    r_in1.set_high();
+    r_in1.set_low();
     r_in2.set_low();
 
+    let mut uart_subscriber = UART_CHANNEL.subscriber().unwrap();
+
     loop {
-        let (_index, _dpad, _buttons, axis_x, _axis_y, _axis_rx, _axis_ry, brake, throttle, _misc_buttons) = UART_CHANNEL.receive().await;
+        let (axis_x, brake, throttle) = match uart_subscriber.next_message().await {
+            Message((_index, _dpad, _buttons, axis_x, _axis_y, _axis_rx, _axis_ry, brake, throttle, _misc_buttons)) => (axis_x, brake, throttle),
+            Lagged(_) => {
+                warn!("UART subscriber lagged, skipping message");
+                continue;
+            }
+        };
 
-        // Normalize throttle and brake (0..=1023)
-        let throttle_f = throttle as f32 / 1023.0;
-        let brake_f = brake as f32 / 1023.0;
+        // info!(
+        //     "Received: axis_x={}, brake={}, throttle={}",
+        //     axis_x, brake, throttle
+        // );
 
-        // Calculate desired speed: throttle forward, brake backward
-        let speed = throttle_f - brake_f; // -1.0 (full reverse) to 1.0 (full forward)
+        // Input ranges:
+        // throttle: 0-1023
+        // brake: 0-1023
+        // axis_x: -512 to 512
 
-        // Normalize steering: axis_x in -512..=512
-        let steering = (axis_x as f32 / 512.0).clamp(-1.0, 1.0); // -1.0 (left) to 1.0 (right)
+        let max_analog_val = 1023.0f32; // Use f32 for calculations
+        let max_axis_val = 512.0f32;
 
-        // Calculate left/right motor speeds
-        let left_speed = (speed - steering * speed).clamp(-1.0, 1.0);
-        let right_speed = (speed + steering * speed).clamp(-1.0, 1.0);
+        // Convert throttle and brake to a 0.0 to 100.0 percent range.
+        // These are effectively "forward_power" and "reverse_power".
+        let throttle_percent = (throttle as f32 / max_analog_val) * 100.0;
+        let brake_percent = (brake as f32 / max_analog_val) * 100.0;
 
-        // Set direction and PWM for left motor
-        if left_speed > 0.0 {
+        // Convert axis_x to a -1.0 to 1.0 steering factor
+        let steering_factor = (axis_x as f32 / max_axis_val).clamp(-1.0, 1.0); // -1.0 (left) to 1.0 (right)
+
+        let mut base_speed_percent: f32 = 0.0;
+
+        if brake_percent > 0.0 {
+            // If brake is active, prioritize it as reverse speed
+            base_speed_percent = -brake_percent; // Negative indicates reverse
+        } else if throttle_percent > 0.0 {
+            // Otherwise, if throttle is active, use it as forward speed
+            base_speed_percent = throttle_percent;
+        }
+        // If both are 0, base_speed_percent remains 0.0 (stopped)
+
+        // Calculate left and right motor speeds, incorporating steering.
+        let mut target_left_speed_percent = base_speed_percent * (1.0 - steering_factor);
+        let mut target_right_speed_percent = base_speed_percent * (1.0 + steering_factor);
+
+        // Clamp final speeds to the valid PWM percentage range (-100.0 to 100.0 for calculations)
+        target_left_speed_percent = target_left_speed_percent.clamp(-100.0, 100.0);
+        target_right_speed_percent = target_right_speed_percent.clamp(-100.0, 100.0);
+
+
+        // --- Apply to Left Motor ---
+        if target_left_speed_percent > 0.0 {
+            // Forward
             l_in1.set_high();
             l_in2.set_low();
-            l_pwm.set_duty_cycle((left_speed * 100.0) as u16);
-        } else if left_speed < 0.0 {
+            l_pwm.set_duty_cycle_percent(target_left_speed_percent as u8); // Cast to u8 for percent
+        } else if target_left_speed_percent < 0.0 {
+            // Reverse
             l_in1.set_low();
             l_in2.set_high();
-            l_pwm.set_duty_cycle((-left_speed * 100.0) as u16);
+            l_pwm.set_duty_cycle_percent((-target_left_speed_percent) as u8); // Absolute value for PWM
         } else {
-            l_pwm.set_duty_cycle(0);
+            // Stop
+            l_in1.set_low();
+            l_in2.set_low();
+            l_pwm.set_duty_cycle_percent(0);
         }
 
-        // Set direction and PWM for right motor
-        if right_speed > 0.0 {
+        // --- Apply to Right Motor ---
+        if target_right_speed_percent > 0.0 {
+            // Forward
             r_in1.set_high();
             r_in2.set_low();
-            r_pwm.set_duty_cycle((right_speed * 100.0) as u16);
-        } else if right_speed < 0.0 {
+            r_pwm.set_duty_cycle_percent(target_right_speed_percent as u8);
+        } else if target_right_speed_percent < 0.0 {
+            // Reverse
             r_in1.set_low();
             r_in2.set_high();
-            r_pwm.set_duty_cycle((-right_speed * 100.0) as u16);
+            r_pwm.set_duty_cycle_percent((-target_right_speed_percent) as u8);
         } else {
-            r_pwm.set_duty_cycle(0);
+            // Stop
+            r_in1.set_low();
+            r_in2.set_low();
+            r_pwm.set_duty_cycle_percent(0);
         }
+
+        Timer::after_millis(10).await; // Yield to other tasks
     }
 }
 
@@ -299,83 +348,115 @@ async fn motors(
 async fn uart_task(
     mut uart: Uart<'static, UART1, UartAsync>,
 ) {
-    let mut last_data: Option<(u8, String, String, i16, i16, i16, i16, u16, u16, String)> = None;
+    let mut last_data: (u8, String, String, i16, i16, i16, i16, u16, u16, String) = (
+        0, String::new(), String::new(), 0, 0, 0, 0, 0, 0, String::new(),
+    );
+
+    let (_tx, mut rx) = uart.split();
+    let mut line_buffer: Vec<u8> = Vec::new();
+    let mut byte_buf = [0u8; 1];
+    let mut send_timer = Timer::after(Duration::from_millis(50));
+    let uart_publisher = UART_CHANNEL.publisher().unwrap();
 
     loop {
-        let (_tx, mut rx) = uart.split();
-        let mut buf = [0u8; 64];
-        let mut index = 0;
-        let mut line: Vec<u8> = Vec::new();
+        let selection = select(
+            rx.read(&mut byte_buf),
+            &mut send_timer
+        ).await;
 
-        // This will store the latest received data, if any, since the last send
-        let mut pending_data: Option<(u8, String, String, i16, i16, i16, i16, u16, u16, String)> = None;
+        match selection {
+            Either::First(Ok(_)) => {
+                let byte = byte_buf[0];
+                if byte == b'\n' {
+                    if let Ok(data_str) = from_utf8(&line_buffer) {
+                        // info!("Received complete line: '{}'", data_str); // Log the full received line
 
-        loop {
-            // Non-blocking read: try to read as much as possible before the next send
-            let start = embassy_time::Instant::now();
-            while embassy_time::Instant::now() - start < embassy_time::Duration::from_millis(10) {
-                match rx.read(&mut buf[index..=index]).await {
-                    Ok(_) => {
-                        let byte = buf[index];
-                        if byte == b'\n' {
-                            if let Ok(data_str) = from_utf8(&line) {
-                                let parts: Vec<&str> = data_str.trim().split(',').collect();
-                                if parts.len() == 10 {
-                                    if let (
-                                        Ok(index), dpad, buttons,
-                                        Ok(axis_x), Ok(axis_y),
-                                        Ok(axis_rx), Ok(axis_ry),
-                                        Ok(brake), Ok(throttle),
-                                        misc_buttons
-                                    ) = (
-                                        parts[0].parse::<u8>(),
-                                        parts[1].to_string(),
-                                        parts[2].to_string(),
-                                        parts[3].parse::<i16>(),
-                                        parts[4].parse::<i16>(),
-                                        parts[5].parse::<i16>(),
-                                        parts[6].parse::<i16>(),
-                                        parts[7].parse::<u16>(),
-                                        parts[8].parse::<u16>(),
-                                        parts[9].to_string(),
-                                    ) {
-                                        pending_data = Some((
-                                            index as u8, dpad, buttons,
-                                            axis_x as i16, axis_y as i16, axis_rx as i16, axis_ry as i16,
-                                            brake as u16, throttle as u16, misc_buttons
-                                        ));
-                                    }
-                                }
+                        let parts: Vec<&str> = data_str.trim().split(',').collect();
+
+                        // --- BEGIN DEBUGGING BLOCK ---
+                        // info!("Parsed {} parts.", parts.len());
+                        // for (i, part) in parts.iter().enumerate() {
+                        //     info!("  Part {}: '{}'", i, part);
+                        // }
+                        // --- END DEBUGGING BLOCK ---
+
+                        if parts.len() == 10 {
+                            // Extract parts directly to avoid repeated indexing and potential panics if parts.len() < 10
+                            let index_str = parts[0];
+                            let dpad_str = parts[1];
+                            let buttons_str = parts[2];
+                            let axis_x_str = parts[3];
+                            let axis_y_str = parts[4];
+                            let axis_rx_str = parts[5];
+                            let axis_ry_str = parts[6];
+                            let brake_str = parts[7];
+                            let throttle_str = parts[8];
+                            let misc_buttons_str = parts[9];
+
+                            let parsed_index_res = index_str.parse::<u8>();
+                            let axis_x_res = axis_x_str.parse::<i16>();
+                            let axis_y_res = axis_y_str.parse::<i16>();
+                            let axis_rx_res = axis_rx_str.parse::<i16>();
+                            let axis_ry_res = axis_ry_str.parse::<i16>();
+                            let brake_res = brake_str.parse::<u16>();
+                            let throttle_res = throttle_str.parse::<u16>();
+
+                            let mut success = true; // Flag to track overall parsing success for this line
+
+                            if parsed_index_res.is_err() { warn!("Failed to parse index '{}': {}", index_str, parsed_index_res.as_ref().unwrap_err().to_string().as_str()); success = false; }
+                            if axis_x_res.is_err() { warn!("Failed to parse axis_x '{}': {}", axis_x_str, axis_x_res.as_ref().unwrap_err().to_string().as_str()); success = false; }
+                            if axis_y_res.is_err() { warn!("Failed to parse axis_y '{}': {}", axis_y_str, axis_y_res.as_ref().unwrap_err().to_string().as_str()); success = false; }
+                            if axis_rx_res.is_err() { warn!("Failed to parse axis_rx '{}': {}", axis_rx_str, axis_rx_res.as_ref().unwrap_err().to_string().as_str()); success = false; }
+                            if axis_ry_res.is_err() { warn!("Failed to parse axis_ry '{}': {}", axis_ry_str, axis_ry_res.as_ref().unwrap_err().to_string().as_str()); success = false; }
+                            if brake_res.is_err() { warn!("Failed to parse brake '{}': {}", brake_str, brake_res.as_ref().unwrap_err().to_string().as_str()); success = false; }
+                            if throttle_res.is_err() { warn!("Failed to parse throttle '{}': {}", throttle_str, throttle_res.as_ref().unwrap_err().to_string().as_str()); success = false; }
+
+                            if success {
+                                last_data = (
+                                    parsed_index_res.unwrap(),
+                                    dpad_str.to_string(),
+                                    buttons_str.to_string(),
+                                    axis_x_res.unwrap(),
+                                    axis_y_res.unwrap(),
+                                    axis_rx_res.unwrap(),
+                                    axis_ry_res.unwrap(),
+                                    brake_res.unwrap(),
+                                    throttle_res.unwrap(),
+                                    misc_buttons_str.to_string(),
+                                );
+                                info!("Successfully parsed new data. Updating last_data.");
+                            } else {
+                                warn!("Skipping update to last_data due to parsing errors on this line.");
                             }
-                            line.clear();
                         } else {
-                            let _ = line.push(byte);
+                            warn!("Incorrect number of parts (expected 10, got {}): '{}'", parts.len(), data_str);
                         }
-                        index = 0;
+                    } else {
+                        warn!("Failed to convert line to UTF-8: {:x}", defmt::Debug2Format(&line_buffer));
                     }
-                    Err(_) => {
-                        break;
-                    }
+                    line_buffer.clear();
+                } else if line_buffer.len() < 63 {
+                    line_buffer.push(byte);
+                } else {
+                    warn!("Line buffer overflow, discarding byte: {:x}", byte);
+                    line_buffer.clear();
                 }
+            },
+            Either::First(Err(e)) => {
+                warn!("UART read error: {:?}", e);
+                line_buffer.clear();
+                Timer::after_millis(5).await;
+            },
+            Either::Second(_) => {
+                uart_publisher.publish(last_data.clone()).await;
+                // You can temporarily comment out the "Sent data" info log here to reduce clutter
+                // info!("Published data: index={}, dpad={}, buttons={}, axis_x={}, axis_y={}, axis_rx={}, axis_ry={}, brake={}, throttle={}, misc_buttons={}",
+                //     last_data.0, last_data.1.as_str(), last_data.2.as_str(), last_data.3, last_data.4, last_data.5, last_data.6, last_data.7, last_data.8, last_data.9.as_str()
+                // );
             }
-
-            // Send data every 10 ms
-            let data_to_send = if let Some(ref new_data) = pending_data {
-                last_data = Some(new_data.clone());
-                pending_data.take()
-            } else {
-                last_data.clone()
-            };
-
-            if let Some(data) = data_to_send {
-                if UART_CHANNEL.try_send(data).is_err() {}
-            }
-
-            Timer::after_millis(10).await;
         }
     }
 }
-
 
 #[embassy_executor::task]
 async fn wifi_task(
