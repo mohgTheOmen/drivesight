@@ -1,10 +1,9 @@
 #![no_std]
 #![no_main]
-// #![allow(unused_imports)]
 
 extern crate alloc;
 
-use core::{cell::RefCell, clone, net::Ipv4Addr, str::from_utf8};
+use core::{cell::RefCell, net::Ipv4Addr, str::from_utf8};
 use alloc::{format, string::{String, ToString}};
 use alloc_cortex_m::CortexMHeap;
 use libm::round;
@@ -13,18 +12,15 @@ use embassy_executor::Spawner;
 use embassy_rp::{
     bind_interrupts,
     clocks::{RoscRng},
-    gpio::{Input, Level, Output, Pull},
-    peripherals::{DMA_CH0, PIO0, SPI0, SPI1},
+    gpio::{Level, Output},
+    peripherals::{DMA_CH0, PIO0, SPI0},
     pio::{InterruptHandler as PioInterruptHandler, Pio},
-    pwm::{Config as ConfigPwm, Pwm, SetDutyCycle},
-    spi::{Async, Blocking, Config as ConfigSpi, Spi},
+    spi::{Blocking, Config as ConfigSpi, Spi},
 };
 use embassy_time::{Duration, Timer, Delay};
 use embassy_sync::blocking_mutex::{
-    raw::{NoopRawMutex, ThreadModeRawMutex},
     NoopMutex,
 };
-use embassy_futures::{join, select::{select, Either}};
 use defmt::{info, unwrap, warn};
 
 use embedded_graphics::{
@@ -37,7 +33,7 @@ use embedded_graphics::{
     prelude::*,
 };
 use mipidsi::{models::ST7735s, options::ColorOrder};
-use mipidsi::options::{Orientation, Rotation};
+use mipidsi::options::{Orientation};
 
 use static_cell::StaticCell;
 use rand::RngCore as _;
@@ -45,31 +41,35 @@ use rand::RngCore as _;
 use display_interface_spi::SPIInterface;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDevice;
 
-use {defmt_rtt as _};
+use {defmt_rtt as _, panic_probe as _};
 
 use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
 use embassy_net::{tcp::TcpSocket, Config as NetConfig, Ipv4Cidr, StackResources, StaticConfigV4};
 
 static SPI_BUS: StaticCell<NoopMutex<RefCell<Spi<'static, SPI0, Blocking>>>> = StaticCell::new();
 
+// --- Interrupt bindings ---
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => PioInterruptHandler<PIO0>;
 });
 
+// --- Global allocator for dynamic memory ---
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
 
-
+/// Task to run the WiFi chip driver
 #[embassy_executor::task]
 async fn cyw43_task(runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>) -> ! {
     runner.run().await
 }
 
+/// Task to run the network stack
 #[embassy_executor::task]
 async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
     runner.run().await
 }
 
+// --- Helper functions for sensor display ---
 fn sensor_lines_and_color(val: u32) -> (u8, Rgb565) {
     match val {
         0..=10 => (4, Rgb565::RED),
@@ -82,7 +82,7 @@ fn sensor_lines_and_color(val: u32) -> (u8, Rgb565) {
 
 fn classify_load(val: &str) -> &'static str {
     let rounded = match val.parse::<f64>() {
-        Ok(f) => round(f) as u32,
+        Ok(f) => round(f.abs()) as u32,
         Err(_) => return "",
     };
     match rounded {
@@ -92,20 +92,21 @@ fn classify_load(val: &str) -> &'static str {
     }
 }
 
+/// Main entry point for the application
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    // Initialize the heap with 32 KB
-    const HEAP_SIZE: usize = 32 * 1024; // 32 KB
+    // --- Initialize the heap with 32 KB ---
+    const HEAP_SIZE: usize = 32 * 1024;
     unsafe { ALLOCATOR.init(cortex_m_rt::heap_start() as usize, HEAP_SIZE) };
 
     info!("Heap initialized with size: {} bytes", HEAP_SIZE);
 
     let p = embassy_rp::init(Default::default());
 
+    // --- WiFi and display hardware initialization ---
     let firmware = include_bytes!("/home/andrei/Documents/School/Microprocessors/embassy/cyw43-firmware/43439A0.bin");
     let clm = include_bytes!("/home/andrei/Documents/School/Microprocessors/embassy/cyw43-firmware/43439A0_clm.bin");
 
-    // Initialize the WiFi module
     let power = Output::new(p.PIN_23, Level::Low);
     let cs = Output::new(p.PIN_25, Level::High);
     let mut pio = Pio::new(p.PIO0, Irqs);
@@ -136,6 +137,7 @@ async fn main(spawner: Spawner) {
     info!("WiFi module initialized");
     Timer::after(Duration::from_millis(500)).await;
 
+    // --- SPI and display setup ---
     let mut spiconfig1 = ConfigSpi::default();
     spiconfig1.frequency = 32_000_000;
 
@@ -150,8 +152,9 @@ async fn main(spawner: Spawner) {
     let mut cs1 = Output::new(p.PIN_17, Level::High);
     let mut ad1 = Output::new(p.PIN_20, Level::Low);
     let mut reset1 = Output::new(p.PIN_21, Level::High);
+    let mut led = Output::new(p.PIN_15, Level::High); // Set LED to high for maximum brightness
 
-    // Display initialization logic
+    // --- Display initialization logic ---
     let spi_dev = SpiDevice::new(spi_bus, cs1);
 
     let mut screen_config = embassy_rp::spi::Config::default();
@@ -168,7 +171,6 @@ async fn main(spawner: Spawner) {
         .unwrap();
 
     let text_style = MonoTextStyle::new(&FONT_6X10, Rgb565::WHITE);
-    let clear_style = MonoTextStyle::new(&FONT_6X10, Rgb565::BLACK);
 
     display.clear(Rgb565::BLACK).unwrap();
 
@@ -194,6 +196,7 @@ async fn main(spawner: Spawner) {
         .draw(&mut display)
         .unwrap();
 
+    // --- Network stack configuration ---
     let config = NetConfig::ipv4_static(StaticConfigV4 {
         address: Ipv4Cidr::new(Ipv4Addr::new(169, 42, 1, 1), 24),
         dns_servers: heapless::Vec::<Ipv4Addr, 3>::new(),
@@ -225,18 +228,10 @@ async fn main(spawner: Spawner) {
     let mut old_lines_l = 0;
     let mut old_lines_f = 0;
     let mut old_lines_r = 0;
-    let mut old_c_l: String = " ".to_string();
-    let mut old_c_r: String = " ".to_string();
     let mut old_load_l: String = " ".to_string();
     let mut old_load_r: String = " ".to_string();
 
-    let mut c_left_sum = 0.0;
-    let mut c_right_sum = 0.0;
-    let mut c_count = 0;
-    let mut avg_c_left = "".to_string();
-    let mut avg_c_right = "".to_string();
-    let mut last_update = embassy_time::Instant::now();
-
+    // --- Main TCP server loop ---
     loop {
         info!("Initializing TCP socket...");
         let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
@@ -255,6 +250,7 @@ async fn main(spawner: Spawner) {
         info!("Received connection from {:?}", socket.remote_endpoint());
         control.gpio_set(0, true).await;
 
+        // --- Data receive and display update loop ---
         loop {
             let n = match socket.read(&mut buf).await {
                 Ok(0) => {
@@ -268,19 +264,17 @@ async fn main(spawner: Spawner) {
                 }
             };
 
-            // Copy the received data into a separate String
+            // --- Parse received data ---
             let received_data = match from_utf8(&buf[..n]) {
-                Ok(data) => data.trim().to_string(), // Convert to an owned String
+                Ok(data) => data.trim().to_string(),
                 Err(_) => {
                     warn!("Invalid UTF-8 data received");
                     continue;
                 }
             };
 
-            // Simulated received data for testing
-            // let received_data = "LEFT:50 FRONT:50 RIGHT:10 C_LEFT:123.123 C_RIGHT:321.987";
+            // info!("Received data: {}", received_data.clone().as_str());
 
-            // Split the string into parts
             let mut left_data = String::new();
             let mut front_data = String::new();
             let mut right_data = String::new();
@@ -310,7 +304,7 @@ async fn main(spawner: Spawner) {
             let front_val = front_data.parse::<u32>().unwrap_or(100);
             let right_val = right_data.parse::<u32>().unwrap_or(100);
 
-            // --- LEFT SENSOR LINES (to the left of the car, horizontal, going left) ---
+            // --- LEFT SENSOR LINES ---
             let (num_lines_left, color_left) = sensor_lines_and_color(left_val);
             // Clear old lines
             if num_lines_left < old_lines_l {
@@ -336,10 +330,9 @@ async fn main(spawner: Spawner) {
                         .unwrap();
                 }
             }
-
             old_lines_l = num_lines_left;
 
-            // --- FRONT SENSOR LINES (above the car, horizontal, going up) ---
+            // --- FRONT SENSOR LINES  ---
             let (num_lines_front, color_front) = sensor_lines_and_color(front_val);
             // Clear old lines
             if num_lines_front < old_lines_f {
@@ -367,7 +360,7 @@ async fn main(spawner: Spawner) {
             }
             old_lines_f = num_lines_front;
 
-            // --- RIGHT SENSOR LINES (to the right of the car, vertical) ---
+            // --- RIGHT SENSOR LINES ---
             let (num_lines_right, color_right) = sensor_lines_and_color(right_val);
             // Clear old lines
             if num_lines_right < old_lines_r {
@@ -395,132 +388,61 @@ async fn main(spawner: Spawner) {
             }
             old_lines_r = num_lines_right;
 
-
-            let load_l = classify_load(&c_left_data).to_string();
-
-            if old_load_l != load_l {
-                Text::new(&old_load_l, Point { x: 20, y: 110 }, clear_style)
-                    .draw(&mut display)
-                    .unwrap();
-
-                Text::new(&load_l, Point { x: 20, y: 110 }, text_style)
-                    .draw(&mut display)
-                    .unwrap();
-            }
-
-            if old_c_l != c_left_data {
-                Text::new(&old_c_l, Point { x: 20, y: 120 }, clear_style)
-                    .draw(&mut display)
-                    .unwrap();
-
-                Text::new(&c_left_data, Point { x: 20, y: 120 }, text_style)
-                    .draw(&mut display)
-                    .unwrap();
-            }
-
-            old_c_l = c_left_data.clone();
-            old_load_l = load_l.clone();
-
-            let load_r = classify_load(&c_right_data).to_string();
-
-            if old_load_r != load_r {
-                Text::new(&old_load_r, Point { x: 80, y: 110 }, clear_style)
-                    .draw(&mut display)
-                    .unwrap();
-
-                Text::new(&load_r, Point { x: 80, y: 110 }, text_style)
-                    .draw(&mut display)
-                    .unwrap();
-            }
-
-            if old_c_r != c_right_data {
-                Text::new(&old_c_r, Point { x: 80, y: 120 }, clear_style)
-                    .draw(&mut display)
-                    .unwrap();
-
-                Text::new(&c_right_data, Point { x: 80, y: 120 }, text_style)
-                    .draw(&mut display)
-                    .unwrap();
-            }
-
-            old_c_r = c_right_data.clone();
-            old_load_r = load_r.clone();
-
-            // --- Added code for averaging ---
+            // --- Parse and display current sensor values and load ---
             let c_left_val = c_left_data.parse::<f64>().unwrap_or(0.0);
             let c_right_val = c_right_data.parse::<f64>().unwrap_or(0.0);
 
-            // Accumulate readings and count
-            c_left_sum += c_left_val;
-            c_right_sum += c_right_val;
-            c_count += 1;
+            // Format values for display 
+            let display_c_left = format!("{:.3}", c_left_val);
+            let display_c_right = format!("{:.3}", c_right_val);
 
-            // Check if 1 second has passed
-            let now = embassy_time::Instant::now();
-            if now - last_update >= embassy_time::Duration::from_secs(1) {
-                let avg_left = if c_count > 0 { c_left_sum / c_count as f64 } else { 0.0 };
-                let avg_right = if c_count > 0 { c_right_sum / c_count as f64 } else { 0.0 };
-                let new_avg_c_left = if c_count > 0 { format!("{:.2}", avg_left) } else { "".to_string() };
-                let new_avg_c_right = if c_count > 0 { format!("{:.2}", avg_right) } else { "".to_string() };
+            // Classify load using absolute value
+            let load_l = classify_load(&display_c_left).to_string();
+            let load_r = classify_load(&display_c_right).to_string();
 
-                // Only update if the average has changed
-                if new_avg_c_left != avg_c_left {
-                    let load_l = classify_load(&new_avg_c_left).to_string();
-                    let old_load_l = classify_load(&avg_c_left).to_string();
-
-                    Text::new(&old_load_l, Point { x: 20, y: 110 }, clear_style)
-                        .draw(&mut display)
-                        .unwrap();
-                    Text::new(&load_l, Point { x: 20, y: 110 }, text_style)
-                        .draw(&mut display)
-                        .unwrap();
-
-                    Text::new(&avg_c_left, Point { x: 20, y: 120 }, clear_style)
-                        .draw(&mut display)
-                        .unwrap();
-                    Text::new(&new_avg_c_left, Point { x: 20, y: 120 }, text_style)
-                        .draw(&mut display)
-                        .unwrap();
-
-                    avg_c_left = new_avg_c_left;
-                }
-
-                if new_avg_c_right != avg_c_right {
-                    let load_r = classify_load(&new_avg_c_right).to_string();
-                    let old_load_r = classify_load(&avg_c_right).to_string();
-
-                    Text::new(&old_load_r, Point { x: 80, y: 110 }, clear_style)
-                        .draw(&mut display)
-                        .unwrap();
-                    Text::new(&load_r, Point { x: 80, y: 110 }, text_style)
-                        .draw(&mut display)
-                        .unwrap();
-
-                    Text::new(&avg_c_right, Point { x: 80, y: 120 }, clear_style)
-                        .draw(&mut display)
-                        .unwrap();
-                    Text::new(&new_avg_c_right, Point { x: 80, y: 120 }, text_style)
-                        .draw(&mut display)
-                        .unwrap();
-
-                    avg_c_right = new_avg_c_right;
-                }
-
-                // Reset for next average
-                c_left_sum = 0.0;
-                c_right_sum = 0.0;
-                c_count = 0;
-                last_update = now;
+            // --- Clear and draw left load only if load changed ---
+            if load_l != old_load_l {
+                Rectangle::new(Point { x: 18, y: 103 }, Size::new(52, 10))
+                    .into_styled(PrimitiveStyle::with_fill(Rgb565::BLACK))
+                    .draw(&mut display)
+                    .unwrap();
+                Text::new(&load_l, Point { x: 20, y: 110 }, text_style)
+                    .draw(&mut display)
+                    .unwrap();
+                old_load_l = load_l.clone();
             }
+
+            // Clear and draw left value
+            Rectangle::new(Point { x: 18, y: 113 }, Size::new(52, 10))
+                .into_styled(PrimitiveStyle::with_fill(Rgb565::BLACK))
+                .draw(&mut display)
+                .unwrap();
+            Text::new(&display_c_left, Point { x: 20, y: 120 }, text_style)
+                .draw(&mut display)
+                .unwrap();
+
+            // --- Clear and draw right load only if load changed ---
+            if load_r != old_load_r {
+                Rectangle::new(Point { x: 78, y: 103 }, Size::new(52, 10))
+                    .into_styled(PrimitiveStyle::with_fill(Rgb565::BLACK))
+                    .draw(&mut display)
+                    .unwrap();
+                Text::new(&load_r, Point { x: 80, y: 110 }, text_style)
+                    .draw(&mut display)
+                    .unwrap();
+                old_load_r = load_r.clone();
+            }
+
+            // Clear and draw right value
+            Rectangle::new(Point { x: 78, y: 113 }, Size::new(52, 10))
+                .into_styled(PrimitiveStyle::with_fill(Rgb565::BLACK))
+                .draw(&mut display)
+                .unwrap();
+            Text::new(&display_c_right, Point { x: 80, y: 120 }, text_style)
+                .draw(&mut display)
+                .unwrap();
 
             Timer::after(Duration::from_millis(100)).await;
         }
     }
-}
-
-
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    defmt::error!("Panic: {:?}", info);
-    loop {}
 }

@@ -3,56 +3,43 @@
 
 extern crate alloc;
 
-use core::{net::Ipv4Addr, str::{self, from_utf8}, cell::RefCell, task};
+use core::{net::Ipv4Addr, str::{self, from_utf8}};
 use alloc::{format, string::{String, ToString}, vec::Vec};
 use alloc_cortex_m::CortexMHeap;
-
 use embassy_executor::Spawner;
-use embassy_rp::{
-    adc::{Adc, Channel as ChannelAdc, Config as ConfigAdc, InterruptHandler as AdcInterruptHandler}, 
+use embassy_rp::{ 
     bind_interrupts, 
-    clocks::{AdcClkSrc, RoscRng}, 
+    clocks::{RoscRng}, 
     gpio::{Input, Level, Output, Pull}, 
     i2c::{Config as ConfigI2c, I2c, InterruptHandler as I2cInterruptHandler}, 
-    peripherals::{DMA_CH0, I2C0, I2C1, PIO0, SPI0, SPI1, UART1}, 
+    peripherals::{DMA_CH0, I2C0, I2C1, PIO0, UART1}, 
     pio::{InterruptHandler as PioInterruptHandler, Pio}, 
-    pwm::{Config as ConfigPwm, Pwm, SetDutyCycle}, 
-    spi::{Async, Blocking, Config as ConfigSpi, Spi}, 
-    time_driver::init,
+    pwm::{Config as ConfigPwm, Pwm, SetDutyCycle},
     uart::{Async as UartAsync, Config as UartConfig, DataBits, Parity, StopBits, Uart}
 };
 use embassy_time::{with_timeout, Delay, Duration, Instant, Timer};
-use embassy_sync::{channel::Channel, pubsub::{subscriber, PubSubChannel, WaitResult::{Lagged, Message}}};
-use embassy_sync::blocking_mutex::{raw::{NoopRawMutex, ThreadModeRawMutex}, NoopMutex};
+use embassy_sync::{pubsub::{PubSubChannel, WaitResult::{Lagged, Message}}};
+use embassy_sync::blocking_mutex::{raw::{ThreadModeRawMutex}};
 use embassy_futures::select::{select, Either};
 use defmt::{info, unwrap, warn};
-use embassy_embedded_hal::shared_bus::{asynch::i2c, blocking::spi::SpiDevice};
 use rand::RngCore;
 use libm::round;
 use static_cell::StaticCell;
-use embedded_graphics::{mono_font::{ascii::FONT_6X10, MonoTextStyle}, pixelcolor::Rgb565, prelude::*, text::Text};
 use {defmt_rtt as _, panic_probe as _};
-
 use cyw43::JoinOptions;
 use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
 use embassy_net::{tcp::TcpSocket, Config as NetConfig, Ipv4Cidr, StackResources, StaticConfigV4};
-
-use itoa::{Buffer};
 use hcsr04_async::{Hcsr04, Config as HcsrConfig, DistanceUnit, TemperatureUnit, Now};
-// use ina219::{
-//     AsyncIna219,
-//     address::Address,
-//     calibration::{IntCalibration, MicroAmpere},
-//     configuration::*,
-// };
 
-static UART_CHANNEL: PubSubChannel<ThreadModeRawMutex, (u8, String, String, i16, i16, i16, i16, u16, u16, String), 1, 5, 1> = PubSubChannel::new();
-static CHANNEL_FRONT: PubSubChannel<ThreadModeRawMutex, f64, 1, 5, 1> = PubSubChannel::new();
-static CHANNEL_LEFT: PubSubChannel<ThreadModeRawMutex, f64, 1, 5, 1> = PubSubChannel::new();
-static CHANNEL_RIGHT: PubSubChannel<ThreadModeRawMutex, f64, 1, 5, 1> = PubSubChannel::new();
-static CHANNEL_CURRENT_L: PubSubChannel<ThreadModeRawMutex, f64, 1, 5, 1> = PubSubChannel::new();
-static CHANNEL_CURRENT_R:PubSubChannel<ThreadModeRawMutex, f64, 1, 5, 1> = PubSubChannel::new();
+// --- Channels for inter-task communication ---
+static UART_CHANNEL: PubSubChannel<ThreadModeRawMutex, (u8, String, String, i16, i16, i16, i16, u16, u16, String), 1, 1, 1> = PubSubChannel::new();
+static CHANNEL_FRONT: PubSubChannel<ThreadModeRawMutex, f64, 1, 1, 1> = PubSubChannel::new();
+static CHANNEL_LEFT: PubSubChannel<ThreadModeRawMutex, f64, 1, 1, 1> = PubSubChannel::new();
+static CHANNEL_RIGHT: PubSubChannel<ThreadModeRawMutex, f64, 1, 1, 1> = PubSubChannel::new();
+static CHANNEL_CURRENT_L: PubSubChannel<ThreadModeRawMutex, f64, 1, 1, 1> = PubSubChannel::new();
+static CHANNEL_CURRENT_R:PubSubChannel<ThreadModeRawMutex, f64, 1, 1, 1> = PubSubChannel::new();
 
+// --- INA219 sensor register addresses ---
 const INA219_ADDRESS: u8 = 0x40; // Address for the INA219 sensor
 const INA219_REG_BUS_VOLTAGE: u8 = 0x02;
 const INA219_REG_SHUNT_VOLTAGE: u8 = 0x01;
@@ -61,54 +48,44 @@ const INA219_REG_CONFIG: u8 = 0x00;
 const INA219_REG_CALIBRATION: u8 = 0x05;
 const INA219_REG_RESET: u8 = 0x80; // Register to reset device
 
+// --- Interrupt bindings ---
 bind_interrupts!(struct Irqs {
-    ADC_IRQ_FIFO => AdcInterruptHandler;
     I2C0_IRQ => I2cInterruptHandler<I2C0>;
     I2C1_IRQ => I2cInterruptHandler<I2C1>;
     PIO0_IRQ_0 => PioInterruptHandler<PIO0>;
     UART1_IRQ => embassy_rp::uart::InterruptHandler<UART1>;
 });
 
+// --- Global allocator for dynamic memory ---
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
 
-
+/// Task to run the WiFi chip driver
 #[embassy_executor::task]
 async fn cyw43_task(runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>) -> ! {
     runner.run().await
 }
 
+/// Task to run the network stack
 #[embassy_executor::task]
 async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
     runner.run().await
 }
 
+/// Task to read and publish current sensor data from two INA219 sensors
 #[embassy_executor::task]
 async fn current(
     mut c_l: I2c<'static, I2C1, embassy_rp::i2c::Async>,
     mut c_r: I2c<'static, I2C0, embassy_rp::i2c::Async>,
 ) {
-    // // Perform an I2C scan on both I2C buses
-    //     let mut buffer = [0u8; 1];
-    //     for addr in 0x03u16..=0x77u16 {
-    //         let result = current_l.write_async(addr as u8, [0x01]).await;
-    //         if result.is_ok() {
-    //             info!("Found device on I2C0 at address: 0x{:02X}", addr);
-    //         }
-    //         let result = current_r.write_async(addr as u8, [0x01]).await;
-    //         if result.is_ok() {
-    //             info!("Found device on I2C1 at address: 0x{:02X}", addr);
-    //         }
-    //     }
-
-    let reset_msg = [INA219_REG_RESET, 0x00]; // Reset device
+    // --- INA219 initialization: reset, configure, calibrate ---
+    let reset_msg = [INA219_REG_RESET, 0x00];
     if let Err(e) = c_l.write_async(INA219_ADDRESS as u16, reset_msg).await {
         // info!("INA219 (left) reset error: {:?}", e);
     }
     if let Err(e) = c_r.write_async(INA219_ADDRESS as u16, reset_msg).await {
         // info!("INA219 (right) reset error: {:?}", e);
     }
-
 
     let config: u16 = 0x399F;
     let config_bytes = config.to_be_bytes(); // [0x39, 0x9F]
@@ -131,7 +108,7 @@ async fn current(
     let calib_r_bytes = calib_r.to_be_bytes(); // [0x10, 0x00]
     let calib_r_msg = [INA219_REG_CALIBRATION, calib_r_bytes[0], calib_r_bytes[1]];
     if let Err(e) = c_r.write_async(INA219_ADDRESS as u16, calib_r_msg).await {
-        // info!("I2C (left) calibration error: {:?}", e);
+        // info!("I2C (right) calibration error: {:?}", e);
     }
 
     Timer::after_millis(1000).await; // Wait for the sensors to configure
@@ -140,6 +117,7 @@ async fn current(
     let publisher_r = CHANNEL_CURRENT_R.publisher().unwrap();
 
     loop {
+        // --- Read 20 samples from each sensor and average ---
         let mut readings_l = [0.0; 20];
         let mut readings_r = [0.0; 20];
 
@@ -147,18 +125,18 @@ async fn current(
             let mut buffer_l = [0u8; 2];
             let mut buffer_r = [0u8; 2];
             if let Err(e) = c_l
-            .write_read_async(INA219_ADDRESS as u16, [INA219_REG_CURRENT], &mut buffer_l)
-            .await
+                .write_read_async(INA219_ADDRESS as u16, [INA219_REG_CURRENT], &mut buffer_l)
+                .await
             {
-            // info!("I2C (left) read error: {:?}", e);
-            continue;
+                // info!("I2C (left) read error: {:?}", e);
+                continue;
             }
             if let Err(e) = c_r
-            .write_read_async(INA219_ADDRESS as u16, [INA219_REG_CURRENT], &mut buffer_r)
-            .await
+                .write_read_async(INA219_ADDRESS as u16, [INA219_REG_CURRENT], &mut buffer_r)
+                .await
             {
-            // info!("I2C (right) read error: {:?}", e);
-            continue;
+                // info!("I2C (right) read error: {:?}", e);
+                continue;
             }
 
             let current_raw_l = ((buffer_l[0] as i16) << 8) | (buffer_l[1] as i16);
@@ -173,11 +151,17 @@ async fn current(
         let avg_l: f32 = readings_l.iter().sum::<f32>() / readings_l.len() as f32;
         let avg_r: f32 = readings_r.iter().sum::<f32>() / readings_r.len() as f32;
 
+        // info!(
+        //     "Current (avg) - Left: {} mA, Right: {} mA",
+        //     avg_l, avg_r
+        // );
+
         publisher_l.publish(avg_l as f64).await;
         publisher_r.publish(avg_r as f64).await;
     }
 }
 
+/// Task to read and publish distances from three HC-SR04 ultrasonic sensors
 #[embassy_executor::task]
 async fn distance(
     trig_front: Output<'static>,
@@ -187,23 +171,21 @@ async fn distance(
     trig_right: Output<'static>,
     echo_right: Input<'static>,
 ) {
+    // --- Sensor configuration ---
     let config_front = HcsrConfig {
         distance_unit: DistanceUnit::Centimeters,
         temperature_unit: TemperatureUnit::Celsius,
     };
-    
     let config_left = HcsrConfig {
         distance_unit: DistanceUnit::Centimeters,
         temperature_unit: TemperatureUnit::Celsius,
     };
-    
     let config_right = HcsrConfig {
         distance_unit: DistanceUnit::Centimeters,
         temperature_unit: TemperatureUnit::Celsius,
     };
 
     struct EmbassyClock;
-
     impl Now for EmbassyClock {
         fn now_micros(&self) -> u64 {
             Instant::now().as_micros()
@@ -216,24 +198,30 @@ async fn distance(
 
     let temperature: f64 = 24.0;
 
-    let mut subscriber_front = CHANNEL_FRONT.publisher().unwrap();
-    let mut subscriber_left = CHANNEL_LEFT.publisher().unwrap();
-    let mut subscriber_right = CHANNEL_RIGHT.publisher().unwrap();
-
+    let mut publisher_front = CHANNEL_FRONT.publisher().unwrap();
+    let mut publisher_left = CHANNEL_LEFT.publisher().unwrap();
+    let mut publisher_right = CHANNEL_RIGHT.publisher().unwrap();
 
     loop {
+        // --- Measure distances ---
         let distance_front = hc_front.measure(temperature).await.unwrap_or(f64::MAX);
         let distance_left = hc_left.measure(temperature).await.unwrap_or(f64::MAX);
         let distance_right = hc_right.measure(temperature).await.unwrap_or(f64::MAX);
 
-        subscriber_front.publish(round(distance_front)).await;
-        subscriber_left.publish(round(distance_left)).await;
-        subscriber_right.publish(round(distance_right)).await;
+        // info!(
+        //     "Distances - Front: {} cm, Left: {} cm, Right: {} cm",
+        //     distance_front, distance_left, distance_right
+        // );
+
+        publisher_front.publish(round(distance_front)).await;
+        publisher_left.publish(round(distance_left)).await;
+        publisher_right.publish(round(distance_right)).await;
 
         Timer::after(Duration::from_millis(100)).await;
     }
 }
 
+/// Task to control motor speeds and directions based on UART input
 #[embassy_executor::task]
 async fn motors(
     mut l_pwm: Pwm<'static>,
@@ -243,8 +231,7 @@ async fn motors(
     mut r_in1: Output<'static>,
     mut r_in2: Output<'static>,
 ) {
-    // Initialize motors to stopped state
-    // set_duty_cycle_percent expects 0-100
+    // --- Initial motor state: stopped ---
     l_pwm.set_duty_cycle_percent(0);
     r_pwm.set_duty_cycle_percent(0);
     l_in1.set_low();
@@ -255,6 +242,7 @@ async fn motors(
     let mut uart_subscriber = UART_CHANNEL.subscriber().unwrap();
 
     loop {
+        // --- Wait for and process UART messages ---
         let (axis_x, brake, throttle) = match uart_subscriber.next_message().await {
             Message((_index, _dpad, _buttons, axis_x, _axis_y, _axis_rx, _axis_ry, brake, throttle, _misc_buttons)) => (axis_x, brake, throttle),
             Lagged(_) => {
@@ -268,38 +256,31 @@ async fn motors(
         //     axis_x, brake, throttle
         // );
 
-        // Input ranges:
-        // throttle: 0-1023
-        // brake: 0-1023
-        // axis_x: -512 to 512
-
-        let max_analog_val = 1023.0f32; // Use f32 for calculations
+        let max_analog_val = 1023.0f32;
         let max_axis_val = 512.0f32;
 
-        // Convert throttle and brake to a 0.0 to 100.0 percent range.
-        // These are effectively "forward_power" and "reverse_power".
+        // --- Convert joystick and button values to motor control parameters ---
         let throttle_percent = (throttle as f32 / max_analog_val) * 100.0;
         let brake_percent = (brake as f32 / max_analog_val) * 100.0;
 
-        // Convert axis_x to a -1.0 to 1.0 steering factor
-        let steering_factor = (axis_x as f32 / max_axis_val).clamp(-1.0, 1.0); // -1.0 (left) to 1.0 (right)
+        let steering_factor = -(axis_x as f32 / max_axis_val).clamp(-1.0, 1.0); // -1.0 (left) to 1.0 (right)
 
         let mut base_speed_percent: f32 = 0.0;
 
         if brake_percent > 0.0 {
             // If brake is active, prioritize it as reverse speed
-            base_speed_percent = -brake_percent; // Negative indicates reverse
+            base_speed_percent = -brake_percent;
         } else if throttle_percent > 0.0 {
             // Otherwise, if throttle is active, use it as forward speed
             base_speed_percent = throttle_percent;
         }
         // If both are 0, base_speed_percent remains 0.0 (stopped)
 
-        // Calculate left and right motor speeds, incorporating steering.
+        // --- Calculate left and right motor speeds, incorporating steering ---
         let mut target_left_speed_percent = base_speed_percent * (1.0 - steering_factor);
         let mut target_right_speed_percent = base_speed_percent * (1.0 + steering_factor);
 
-        // Clamp final speeds to the valid PWM percentage range (-100.0 to 100.0 for calculations)
+        // --- Clamp final speeds to the valid PWM percentage range (-100.0 to 100.0 for calculations) ---
         target_left_speed_percent = target_left_speed_percent.clamp(-100.0, 100.0);
         target_right_speed_percent = target_right_speed_percent.clamp(-100.0, 100.0);
 
@@ -309,12 +290,12 @@ async fn motors(
             // Forward
             l_in1.set_high();
             l_in2.set_low();
-            l_pwm.set_duty_cycle_percent(target_left_speed_percent as u8); // Cast to u8 for percent
+            l_pwm.set_duty_cycle_percent(target_left_speed_percent as u8);
         } else if target_left_speed_percent < 0.0 {
             // Reverse
             l_in1.set_low();
             l_in2.set_high();
-            l_pwm.set_duty_cycle_percent((-target_left_speed_percent) as u8); // Absolute value for PWM
+            l_pwm.set_duty_cycle_percent((-target_left_speed_percent) as u8);
         } else {
             // Stop
             l_in1.set_low();
@@ -340,10 +321,11 @@ async fn motors(
             r_pwm.set_duty_cycle_percent(0);
         }
 
-        Timer::after_millis(10).await; // Yield to other tasks
+        Timer::after_millis(10).await;
     }
 }
 
+/// Task to read and publish UART data over the network
 #[embassy_executor::task]
 async fn uart_task(
     mut uart: Uart<'static, UART1, UartAsync>,
@@ -373,15 +355,7 @@ async fn uart_task(
 
                         let parts: Vec<&str> = data_str.trim().split(',').collect();
 
-                        // --- BEGIN DEBUGGING BLOCK ---
-                        // info!("Parsed {} parts.", parts.len());
-                        // for (i, part) in parts.iter().enumerate() {
-                        //     info!("  Part {}: '{}'", i, part);
-                        // }
-                        // --- END DEBUGGING BLOCK ---
-
                         if parts.len() == 10 {
-                            // Extract parts directly to avoid repeated indexing and potential panics if parts.len() < 10
                             let index_str = parts[0];
                             let dpad_str = parts[1];
                             let buttons_str = parts[2];
@@ -424,7 +398,7 @@ async fn uart_task(
                                     throttle_res.unwrap(),
                                     misc_buttons_str.to_string(),
                                 );
-                                info!("Successfully parsed new data. Updating last_data.");
+                                // info!("Successfully parsed new data. Updating last_data.");
                             } else {
                                 warn!("Skipping update to last_data due to parsing errors on this line.");
                             }
@@ -449,7 +423,6 @@ async fn uart_task(
             },
             Either::Second(_) => {
                 uart_publisher.publish(last_data.clone()).await;
-                // You can temporarily comment out the "Sent data" info log here to reduce clutter
                 // info!("Published data: index={}, dpad={}, buttons={}, axis_x={}, axis_y={}, axis_rx={}, axis_ry={}, brake={}, throttle={}, misc_buttons={}",
                 //     last_data.0, last_data.1.as_str(), last_data.2.as_str(), last_data.3, last_data.4, last_data.5, last_data.6, last_data.7, last_data.8, last_data.9.as_str()
                 // );
@@ -458,6 +431,7 @@ async fn uart_task(
     }
 }
 
+/// Task to connect to Wi-Fi and send sensor data to a remote server
 #[embassy_executor::task]
 async fn wifi_task(
     mut control: cyw43::Control<'static>,
@@ -472,6 +446,7 @@ async fn wifi_task(
     let mut subscriber_right = CHANNEL_RIGHT.subscriber().unwrap();
 
     loop {
+        // --- Connect to Wi-Fi ---
         loop {
             match control
                 .join(wifi_ssid, JoinOptions::new(wifi_password.as_bytes()))
@@ -496,6 +471,7 @@ async fn wifi_task(
         let mut rx_buf = [0; 4096];
         let mut tx_buf = [0; 4096];
 
+        // --- Establish TCP connection and send data ---
         loop {
             let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
             socket.set_timeout(Some(Duration::from_secs(10)));
@@ -514,6 +490,7 @@ async fn wifi_task(
                     let mut auto: bool = false;
     
                     loop {
+                        // --- Read sensor data from channels ---
                         let distance_front = match subscriber_front.next_message().await {
                             Message(msg) => msg,
                             Lagged(_) => 0.0
@@ -535,6 +512,7 @@ async fn wifi_task(
                             Lagged(_) => 0.0
                         };
                         
+                        // --- Format and send data over TCP ---
                         let msg = format!(
                             "LEFT:{:.0} FRONT:{:.0} RIGHT:{:.0} C_LEFT:{:.3} C_RIGHT:{:.3}\n",
                             distance_left, distance_front, distance_right, current_left, current_right 
@@ -565,15 +543,17 @@ async fn wifi_task(
     }
 }
 
+/// Main entry point for the application
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     // Initialize the heap with 32 KB
-    const HEAP_SIZE: usize = 32 * 1024; // 32 KB
+    const HEAP_SIZE: usize = 32 * 1024;
     unsafe { ALLOCATOR.init(cortex_m_rt::heap_start() as usize, HEAP_SIZE) };
 
     info!("Heap initialized with size: {} bytes", HEAP_SIZE);
     let p = embassy_rp::init(Default::default());
 
+    // --- Motor driver configuration ---
     let motor_l_pwm = Pwm::new_output_a(p.PWM_SLICE0, p.PIN_16, ConfigPwm::default());
     let motor_r_pwm = Pwm::new_output_a(p.PWM_SLICE1, p.PIN_18, ConfigPwm::default());
     let motor_l_in1 = Output::new(p.PIN_17, Level::Low);
@@ -581,6 +561,7 @@ async fn main(spawner: Spawner) {
     let motor_r_in1 = Output::new(p.PIN_19, Level::Low);
     let motor_r_in2 = Output::new(p.PIN_21, Level::Low);
 
+    // --- Ultrasonic sensor configuration ---
     let trig_front = Output::new(p.PIN_12, Level::Low);
     let echo_front = Input::new(p.PIN_13, Pull::Down);
     let trig_left = Output::new(p.PIN_14, Level::Low);
@@ -588,9 +569,11 @@ async fn main(spawner: Spawner) {
     let trig_right = Output::new(p.PIN_10, Level::Low);
     let echo_right = Input::new(p.PIN_11, Pull::Down);
 
+    // --- INA219 current sensor configuration ---
     let mut current_l = I2c::new_async(p.I2C1, p.PIN_7, p.PIN_6, Irqs, ConfigI2c::default());
     let mut current_r = I2c::new_async(p.I2C0, p.PIN_9, p.PIN_8, Irqs, ConfigI2c::default());
 
+    // --- UART configuration ---
     let mut uartconfig = UartConfig::default();
     uartconfig.baudrate = 9600;
     uartconfig.stop_bits = StopBits::STOP1;
@@ -599,11 +582,13 @@ async fn main(spawner: Spawner) {
 
     let mut uart = Uart::new(p.UART1, p.PIN_4, p.PIN_5, Irqs, p.DMA_CH3, p.DMA_CH4, uartconfig);
 
+    // --- Spawn tasks for concurrent execution ---
     spawner.spawn(distance(trig_front, echo_front, trig_left, echo_left, trig_right, echo_right)).unwrap();
     spawner.spawn(motors(motor_l_pwm, motor_r_pwm, motor_l_in1, motor_l_in2, motor_r_in1, motor_r_in2)).unwrap();
     spawner.spawn(current(current_l, current_r)).unwrap();
     spawner.spawn(uart_task(uart)).unwrap();
 
+    // --- WiFi and network initialization ---
     let firmware = include_bytes!("/home/andrei/Documents/School/Microprocessors/embassy/cyw43-firmware/43439A0.bin");
     let clm = include_bytes!("/home/andrei/Documents/School/Microprocessors/embassy/cyw43-firmware/43439A0_clm.bin");
 
